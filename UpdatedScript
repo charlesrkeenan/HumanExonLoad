@@ -1,27 +1,70 @@
-# load allen mouse and human transcriptomic data
-# copies a file written by oganm: https://github.com/oganm/metaNeighborTrial/blob/master/processAllenData.R
-
 dir.create('data-raw/allenHuman',showWarnings = FALSE, recursive = TRUE)
 download.file('http://celltypes.brain-map.org/api/v2/well_known_file_download/694416044',destfile = 'data-raw/allenHuman/humanExp.zip')
 
-
 unzip('data-raw/allenHuman/humanExp.zip',exdir = 'data-raw/allenHuman')
-
 
 library(readr)
 library(edgeR)
+library(ggplot2)
+library(dplyr)
 
-### load human MTG nuclei data
 humanExons = read_csv('data-raw/allenHuman/human_MTG_2018-06-14_exon-matrix.csv')
-humanGenes = read_csv('data-raw/allenHuman/human_MTG_2018-06-14_genes-rows.csv')
 humanMeta = read_csv('data-raw/allenHuman/human_MTG_2018-06-14_samples-columns.csv')
 assertthat::assert_that(all(colnames(humanExons)[-1] ==humanMeta$sample_name))
 # We used log2-transformed CPM of intronic plus exonic reads for both datasets.
 
-humanExomeCPM = cpm(humanExons[,-1])
-humanExomeCPMLog = log2(humanExomeCPM +1)
-rownames(humanExomeCPMLog) = humanGenes$gene
+# Filter the humanMeta data to only show cells from the L5 cortex layer and the desired donor. Within the humanExon dataset, then select the cells that match the sample names from
+# the newly filtered humanMeta dataset. Calculate the pairwise cell correlations, remove the correlations that were performed on identical cells (Would equal r = 1.00). Use cbind()
+# to label these expression correlations with the appropriate donor ID and subject group. Repeat these steps for all 8 donors.
 
-saveRDS(humanExomeCPMLog,file= 'data-raw/allenHuman/humanAll.rds')
+H200.1030_sample_names = filter(humanMeta, brain_subregion == "L5", donor == "H200.1030")
+H200.1030_gene_expression = select(humanExons, H200.1030_sample_names$sample_name) %>% cpm()
+H200.1030_correlations = log2(H200.1030_gene_expression +1) %>% as.data.frame() %>% cor() %>% melt() %>% filter(value != 1) %>% cbind(Donor = c("H200.1030"), Group = c("Control"))
 
-rm(humanExomeCPM, humanExomeCPMLog)
+H200.1025_sample_names = filter(humanMeta, brain_subregion == "L5", donor == "H200.1025")
+H200.1025_gene_expression = select(humanExons, H200.1025_sample_names$sample_name) %>% cpm()
+H200.1025_correlations = log2(H200.1025_gene_expression +1) %>% as.data.frame() %>% cor() %>% melt() %>% filter(value != 1) %>% cbind(Donor = c("H200.1025"), Group = c("Control"))
+
+H200.1023_sample_names = filter(humanMeta, brain_subregion == "L5", donor == "H200.1023")
+H200.1023_gene_expression = select(humanExons, H200.1023_sample_names$sample_name) %>% cpm()
+H200.1023_correlations = log2(H200.1023_gene_expression +1) %>% as.data.frame() %>% cor() %>% melt() %>% filter(value != 1) %>% cbind(Donor = c("H200.1023"), Group = c("Control"))
+
+H16.24.010_sample_names = filter(humanMeta, brain_subregion == "L5", donor == "H16.24.010")
+H16.24.010_gene_expression = select(humanExons, H16.24.010_sample_names$sample_name) %>% cpm()
+H16.24.010_correlations = log2(H16.24.010_gene_expression +1) %>% as.data.frame() %>% cor() %>% melt() %>% filter(value != 1) %>% cbind(Donor = c("H16.24.010"), Group = c("Control"))
+
+H16.06.009_sample_names = filter(humanMeta, brain_subregion == "L5", donor == "H16.06.009")
+H16.06.009_gene_expression = select(humanExons, H16.06.009_sample_names$sample_name) %>% cpm()
+H16.06.009_correlations = log2(H16.06.009_gene_expression +1) %>% as.data.frame() %>% cor() %>% melt() %>% filter(value != 1) %>% cbind(Donor = c("H16.06.009"), Group = c("Case"))
+
+H16.06.008_sample_names = filter(humanMeta, brain_subregion == "L5", donor == "H16.06.008")
+H16.06.008_gene_expression = select(humanExons, H16.06.008_sample_names$sample_name) %>% cpm()
+H16.06.008_correlations = log2(H16.06.008_gene_expression +1) %>% as.data.frame() %>% cor() %>% melt() %>% filter(value != 1) %>% cbind(Donor = c("H16.06.008"), Group = c("Case"))
+
+H16.03.004_sample_names = filter(humanMeta, brain_subregion == "L5", donor == "H16.03.004")
+H16.03.004_gene_expression = select(humanExons, H16.03.004_sample_names$sample_name) %>% cpm()
+H16.03.004_correlations = log2(H16.03.004_gene_expression +1) %>% as.data.frame() %>% cor() %>% melt() %>% filter(value != 1) %>% cbind(Donor = c("H16.03.004"), Group = c("Case"))
+
+H16.06.002_sample_names = filter(humanMeta, brain_subregion == "L5", donor == "H16.06.002")
+H16.06.002_gene_expression = select(humanExons, H16.06.002_sample_names$sample_name) %>% cpm()
+H16.06.002_correlations = log2(H16.06.002_gene_expression +1) %>% as.data.frame() %>% cor() %>% melt() %>% filter(value != 1) %>% cbind(Donor = c("H16.06.002"), Group = c("Case"))
+
+# Apply the rbind() function to create a dataframe that includes the correlations from all 8 donors. Next, group the dataframe by donor and group, and calculate the mean correlations and standard deviations.
+
+plot_ready = rbind(H200.1030_correlations, H200.1023_correlations, H200.1025_correlations,  H16.24.010_correlations, H16.06.002_correlations, H16.03.004_correlations, H16.06.008_correlations, H16.06.009_correlations)
+plot_ready = plot_ready %>% group_by(Donor, Group) %>% summarize(mean_cor = mean(value), sd_cor = sd(value))
+
+# Plot the mean cell-cell exon expression correlations with standard deviation error bars. Then, plot the standard deviations of the cell-cell exon expression correlations.
+
+plot_ready %>% ggplot(aes(x = Donor, y = mean_cor, color = Group)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = mean_cor -  sd_cor, ymax = mean_cor + sd_cor)) +
+  ggtitle("Mean Correlations of Cell Exon Expression") +
+  ylab("Correlation Value") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+plot_ready %>% ggplot(aes(x = Donor, y = sd_cor, color = Group)) +
+  geom_point() +
+  ggtitle("Standard Deviations of Correlations") +
+  ylab("Standard Deviation") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
